@@ -1,0 +1,9 @@
+web:
+    image: msrn/kub:v4
+    ports:
+     - "5000:5000"
+    links:
+     - redis
+redis:
+    image: redis:latest
+    container_name: redis
