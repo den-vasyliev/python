@@ -6,15 +6,14 @@ metadata:
   creationTimestamp: null
   generation: 1
   labels:
-    app: kub
-    name: kub
-  name: kub
-  selfLink: /apis/extensions/v1beta1/namespaces/default/deployments/kub
+    app: web
+    name: kub-m
+  name: kub-m
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: kub
+      app: web
   strategy:
     rollingUpdate:
       maxSurge: 1
@@ -24,18 +23,21 @@ spec:
     metadata:
       creationTimestamp: null
       labels:
-        app: kub
+        app: web
     spec:
       containers:
-      - image: msrn/kub:v5
-        imagePullPolicy: IfNotPresent
-        name: kub
-        resources: {}
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
-      dnsPolicy: ClusterFirst
-      restartPolicy: Always
-      schedulerName: default-scheduler
-      securityContext: {}
-      terminationGracePeriodSeconds: 30
-status: {}
+        - name: kub-py
+          image: msrn/kub:v7
+          env:
+            - name: "REDIS_HOST"
+              value: "localhost"
+          ports:
+            - containerPort: 5000
+              name: http
+              protocol: TCP
+        - name: redis
+          image: docker.io/redis
+          ports:
+            - containerPort: 6379
+              protocol: TCP
+

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: web
+    name: kub-m
+  name: kub-m
+spec:
+  containers:
+    - name: kub-py
+      image: msrn/kub:v5
+      env:
+        - name: "REDIS_HOST"
+          value: "localhost"
+      ports:
+        - containerPort: 5000
+          name: http
+          protocol: TCP
+    - name: redis
+      image: docker.io/redis
+      ports:
+        - containerPort: 6379
+          protocol: TCP

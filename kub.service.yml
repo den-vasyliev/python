@@ -3,19 +3,17 @@ kind: Service
 metadata:
   creationTimestamp: null
   labels:
-    app: kub
-    name: kub
-  name: kub
-  selfLink: /api/v1/namespaces/default/services/kub
+    app: web
+    name: kub-m
+  name: kub-m
 spec:
-  clusterIP: <unknown>
   ports:
   - port: 80
     protocol: TCP
     targetPort: 5000
   selector:
-    app: kub
+    app: web
   sessionAffinity: None
-  type: ClusterIP
+  type: NodePort
 status:
   loadBalancer: {}

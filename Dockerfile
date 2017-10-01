@@ -1,5 +1,6 @@
-From python:2.7-wheezy
+From python:2.7-onbuild
 EXPOSE 5000
-ADD kub.py kub.py
-RUN pip install flask redis
-CMD ["python", "kub.py"]
+#ADD kub.py kub.py
+#RUN pip install flask redis MySQL-python
+CMD ["python", "kub-multi.py"]
+  
