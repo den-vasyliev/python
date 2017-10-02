@@ -1,0 +1,17 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: fanout-ingress
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        backend:
+         serviceName: wordpress
+         servicePort: 80
+      - path: /hc
+        backend:
+         serviceName: hc
+         servicePort: 5000
+
