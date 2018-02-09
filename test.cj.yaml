@@ -1,0 +1,24 @@
+piVersion: batch/v2alpha1
+kind: CronJob
+metadata:
+  creationTimestamp: null
+  name: hello
+spec:
+  concurrencyPolicy: Allow
+  jobTemplate:
+    metadata:
+      creationTimestamp: null
+    spec:
+      template:
+        metadata:
+          creationTimestamp: null
+        spec:
+          containers: []
+          dnsPolicy: ClusterFirst
+          restartPolicy: Always
+          schedulerName: default-scheduler
+          securityContext: {}
+          terminationGracePeriodSeconds: 30
+  schedule: '*/1 * * * *'
+  suspend: false
+status: {}

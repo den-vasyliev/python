@@ -1,0 +1,42 @@
+apiVesrion: v1
+kind: Deployment
+metadata:
+  name: test-pod.cmd
+spec:
+  containers:
+    - name: test-pod
+      image: gcr.io/google_containers/busybox
+      #command: ["/bin/sh","-c","env"]
+      command: ["/bin/sh","-c","--"]
+      args: ["while true; do sleep 30; done;"]
+      env:
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: log-config
+              key: log.level
+        - name: LOG_LOCATION
+          valueFrom:
+            configMapKeyRef:
+              name: log-config
+              key: log.location
+      volumeMounts:
+      - name: config-volume
+        mountPath: /etc/config
+      - name: config
+        mountPath: /config
+      - name: data
+        mountPath: /data
+  volumes:
+    - name: config
+      configMap:
+        name: redis-config
+        items:
+        - key: redis.conf
+          path: redis.conf
+    - name: data
+      emptyDir: {}
+    - name: config-volume
+      configMap:
+        name: log-config
+  restartPolicy: Never
