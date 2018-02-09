@@ -47,7 +47,6 @@ def pullbuild(branch, artifact):
     return 1
 
   print 'Build: ' + buildInfo['buildName']
-  #url='http://www.futurecrew.com/skaven/song_files/mp3/razorback.mp3'
   for x in range(0, env.wgetRetry):
     if buildFileSize['result']:
       print 'Successful: %s (%s/%s)' % (buildInfo['diskFile'], buildFileSize['size'], buildFileSize['remote_size'])
