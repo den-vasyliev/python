@@ -20,7 +20,7 @@ def production_env(branch, artifact):
     env.key_filename      	= '~/.ssh/qsc-core.rsa' 
     env.nc                  = 'nc -w 1 -z 172.22.171.'
     env.curl                = 'curl -v -u admin:admin123'
-    env.wget                = 'wget --retry-connrefused --waitretry=1 --read-timeout=20 --timeout=15 -t 3 --continue'
+    env.wget                = 'wget --retry-connrefused --waitretry=10 --read-timeout=20 --timeout=15 -t 3 --continue'
     env.wgetRetry           = 3
     env.tunnel              = 'ssh -i %s -f -N -L 456:10.104.31.6:8080 172.22.171.' % (env.key_filename)
     env.nexus               = 'http://localhost:8081/repository/builds'
@@ -28,6 +28,7 @@ def production_env(branch, artifact):
     env.buildUrl           	    = '/job/%s/%s/artifact/' % (branch, tag)
     env.cmdBuildNumber      = 'wget -qO- %s/job/%s/%s/buildNumber' % (env.jenkinsHost, branch, tag)
     env.cmdBuildSize        = '--spider -o -|grep Length|cut -d " " -f 2'
+    env.cmdNexusSize        = '--spider -o -|grep Length|cut -d " " -f 2 --http-user admin --http-password admin123 '
 
 
 def pullbuild(branch, artifact):
@@ -47,21 +48,22 @@ def pullbuild(branch, artifact):
     return 1
 
   print 'Build: ' + buildInfo['buildName']
+
   for x in range(0, env.wgetRetry):
     if buildFileSize['result']:
       print 'Successful: %s (%s/%s)' % (buildInfo['diskFile'], buildFileSize['size'], buildFileSize['remote_size'])
       break
     else:
-      print 'Pulling a build: %s (%s/%s)' % (buildInfo['buildUrl'], buildFileSize['size'], buildFileSize['remote_size'])
+      print 'Pulling [%i]: %s (%s/%s)' % (x, buildInfo['buildUrl'], buildFileSize['size'], buildFileSize['remote_size'])
       lrun( (env.wget + ' %s -O %s') % (buildInfo['buildUrl'], buildInfo['diskFile']))
       buildFileSize = ckSize(buildInfo['diskFile'],buildInfo['buildUrl'])
 
   killTunnel()
+  nexusResult = nexusUpload(branch, buildInfo['diskFile'], buildInfo['buildName'], buildInfo['fileName'], buildFileSize['size'])
   nextJob(branch)
-  nexusUpload(branch, buildInfo['diskFile'], buildInfo['buildName'], buildInfo['fileName'])
   
   end = time.time()
-  print 'Timer: %f' % (end - start)
+  print 'Timer: %f  Retries: %i  Result: %s' % (x, end - start, nexusResult)
   return 0
  
 def killTunnel():
@@ -83,11 +85,27 @@ def sshTunnel():
           print 'Tunnel: ' + env.tunnel + jumpHost
           return 0
 
-def nexusUpload(branch, diskFile, buildName, fileName):
-      cmdNexusUpload  = '%s --upload-file %s %s/%s/%s/%s' % (env.curl, diskFile, env.nexus, branch, buildName, fileName)
-      lrun(cmdNexusUpload, capture=True)
-      print 'Nexus Path: %s/%s/%s' % (branch, buildName, buildName)
-      return 0
+def nexusUpload(branch, diskFile, buildName, fileName, buildFileSize):
+      
+      for x in range(0, env.wgetRetry):
+
+        print 'Uploading to Nexus [%i]...' % (x)
+        cmdNexusUpload  = '%s --upload-file %s %s/%s/%s/%s' % (env.curl, diskFile, env.nexus, branch, buildName, fileName)
+        #lrun(cmdNexusUpload, capture=True)
+        
+        cmdNexusCheck  = '%s %s/%s/%s/%s %s' % ('wget', env.nexus, branch, buildName, fileName, env.cmdNexusSize)
+        print cmdNexusCheck
+        nexusFileSize = lrun(cmdNexusCheck, capture=True) or 0
+        print 'Nexus Check: %s/%s/%s (%s/%s)' % (branch, buildName, fileName, nexusFileSize, buildFileSize)
+
+        if int(nexusFileSize) == int(buildFileSize):
+          print 'Successful: %s/%s/%s (%s/%s)' % (branch, buildName, fileName, nexusFileSize, buildFileSize)
+          nexusResult = 'Successful'
+          break
+        else:
+          nexusResult = 'Could not upload'
+
+      return nexusResult
 
 def ckSize(diskFile, buildUrl):
 
@@ -96,7 +114,7 @@ def ckSize(diskFile, buildUrl):
         diskSize = os.path.getsize(diskFile)
         if int(diskSize) == int(jbuildSize):
           return {'result': 1, 'size': diskSize, 'remote_size': jbuildSize}
-        return {'result': 0, 'size': 0, 'remote_size': jbuildSize}
+        return {'result': 0, 'size': diskSize, 'remote_size': jbuildSize}
       return {'result': 0, 'size': 0, 'remote_size': jbuildSize}
 
 
@@ -116,5 +134,8 @@ def jbuildInfo(branch):
         jdiskFile = env.diskPath + jbuildName + ':' + jfileName
 
         return {'buildUrl': jbuildUrl, 'buildName': jbuildName, 'diskFile': jdiskFile, 'fileName': jfileName}
-  
+
+def cleanup(branch, diskFile, buildName, fileName):
+      lrun(cmdNexusUpload, capture=True)
+      print 'Nexus Path: %s/%s/%s' % (branch, buildName, buildName)
 ##
