@@ -14,9 +14,9 @@ def setenv():
   envars = ''
   s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
   s.connect(('10.255.255.255', 1))
-  s.close
   myIp = s.getsockname()[0]
-  enVar = {'PULLBUILD_JENKINS_HOST':'10.104.31.6','PULLBUILD_JENKINS_PORT':'8080','PULLBUILD_NEXUS_HOST':myIp,'PULLBUILD_NEXUS_PORT':'8081','PULLBUILD_SSH_KEY':'qsc-core.rsa','PULLBUILD_NEXUS_USER':'admin','PULLBUILD_NEXUS_PASSWD':'admin123','PULLBUILD_SLACK_TOKEN':'SET_ME_PLEASE','PULLBUILD_DEBUG':'true'}
+  s.close
+  enVar = {'PULLBUILD_JENKINS_HOST':'10.104.31.6','PULLBUILD_JENKINS_PORT':'8080','PULLBUILD_NEXUS_HOST':myIp,'PULLBUILD_NEXUS_PORT':'8081','PULLBUILD_SSH_KEY':'qsc-core.rsa','PULLBUILD_NEXUS_USER':'admin','PULLBUILD_NEXUS_PASSWD':'admin123','PULLBUILD_SLACK_TOKEN':'SET_ME_PLEASE','PULLBUILD_DEBUG':'true','PULLBUILD_TUNNEL':'false'}
   for var, val in (enVar.items()):
     try:
       os.environ[var]
@@ -27,12 +27,12 @@ def setenv():
   return envars
 
 
-def production_env(branch, artifact, tunnel):
+def production_env(branch, artifact):
     setenv()
     env.debug               = os.environ["PULLBUILD_DEBUG"]
     env.core_list           = ['19','24','25','35']    
     env.disable_known_hosts = 'true'
-    env.useTunnel           = tunnel
+    env.useTunnel           = os.environ["PULLBUILD_TUNNEL"]
     env.jenkinsHost		      = os.environ["PULLBUILD_JENKINS_HOST"]
     env.jenkinsPort         = os.environ["PULLBUILD_JENKINS_PORT"]
     env.jenkinsProto        = 'http'
@@ -46,7 +46,7 @@ def production_env(branch, artifact, tunnel):
     env.nexusPasswd         = os.environ["PULLBUILD_NEXUS_PASSWD"]
     env.slackToken          = os.environ["PULLBUILD_SLACK_TOKEN"]
     env.slackHook           = "curl -k -X POST -H 'Content-type: application/json' https://hooks.slack.com/services/%s --data " % (env.slackToken)
-    if int(tunnel):
+    if env.useTunnel == 'true':
       env.tunnel            = 'ssh -i %s -f -N -L %s:%s:%s 172.22.171.' % (env.key_filename, env.tunnelPort, env.jenkinsHost, env.jenkinsPort)
       env.jenkinsHost       = '127.0.0.1'
       env.jenkinsPort       = env.tunnelPort
@@ -66,6 +66,23 @@ def production_env(branch, artifact, tunnel):
     env.cmdBuildNumber      = 'wget -qO- %s/job/%s/%s/buildNumber' % (env.jenkinsURL, branch, env.tag)
     env.cmdBuildSize        = '--spider -o -|grep Length|cut -d " " -f 2'
     env.cmdNexusSize        = '--spider --http-user %s --http-password %s -o -|grep Length|cut -d " " -f 2' % (env.nexusUser, env.nexusPasswd)
+    env.logCleanup          = 'Disk cleaned up'
+    env.logMainTimer        = 'Timer:'
+    env.logMainAlready      = 'Already done: '
+    env.logMainUrl          = 'Download URL: '
+    env.logMainBuild        = 'Build: '
+    env.logMainExcept       = 'Exception - Retry: '
+    env.logMainSuccess      = 'Successfully: '
+    env.logMainNoSuccess    = 'Unsuccessfully - retries '
+    env.lognexusUpload      = 'Nexus Uploading: '
+    env.lognexusUploadSuccess = 'Successfully: '
+    env.lognexusUploadNoSuccess = 'Unsuccessfully: '
+    env.lognexusUploadCheck = 'Nexus Ckeck: '
+    env.logjHostCheck       = {'0':'Connected: ', '1':'Can not connect'}
+    env.logsshTunnel        = 'Tunnel: '
+    env.killTunnel          = 'Tunnel closed'
+    env.lognextJob          = 'Scheduler: '
+
     
 
 def help():
@@ -77,32 +94,34 @@ Set ENV or use defaults:
 %s""" % (setenv())
   print help
 
-def pullbuild(branch, artifact, tunnel):
+def pullbuild(branch, artifact):
   start = time.time()
-  production_env(branch, artifact, tunnel)
+  production_env(branch, artifact)
   
   sshTunnel()
+  print 'ok'
   if jHostCheck():
     killTunnel()
     Notify(log)
     return -1
-
+  print 'ok'
   buildInfo = jbuildInfo(branch)
+  print 'ok'
   nexusURL = '%s/%s/%s/%s' % (env.nexus, branch, buildInfo['buildName'], buildInfo['fileName'])
   NexusCheck  = '%s %s %s' % ('wget', nexusURL, env.cmdNexusSize)
   buildNexusSize = ckNexusSize(buildInfo['diskFile'],buildInfo['buildUrl'], NexusCheck)
 
   if buildNexusSize['result']:
-    log[time.time()] = 'Already pulled: %s (%s/%s)' % (buildInfo['buildName'], buildNexusSize['size'], buildNexusSize['remote_size'])
+    logger(time.time(),'%s: %s (%s/%s)' % (env.log.main.already, buildInfo['buildName'], buildNexusSize['size'], buildNexusSize['remote_size']))
     killTunnel()
     nextJob(branch)
     end = time.time()
-    log['ztimer'] = 'Timer: %f' % (end - start)
-    log['url'] = 'Download URL: %s' % (nexusURL)
+    logger('ztimer', '%s %f' % (env.logMainTimer, end - start))
+    logger('url', '%s %s' % (env.logMainUrl, nexusURL))
     Notify(log)
     return 1
 
-  log[time.time()] =  'Build: ' + buildInfo['buildName']
+  log[time.time()] =  '%s %s' % (env.logMainBuild, buildInfo['buildName'])
 
   buildFileSize = ckSize(buildInfo['diskFile'],buildInfo['buildUrl'])
   error = 0
@@ -110,22 +129,22 @@ def pullbuild(branch, artifact, tunnel):
   for x in range(0, env.wgetRetry):
     if buildFileSize['result']:
       try:
-        log[time.time()] = 'Pulling [%i]: %s (%s/%s)' % (x, buildInfo['buildUrl'], buildFileSize['size'], buildFileSize['remote_size'])
+        logger(time.time(), '%s [%i]: %s (%s/%s)' % (env.logMainAlready, x, buildInfo['buildUrl'], buildFileSize['size'], buildFileSize['remote_size']))
         lrun( (env.wget + ' %s -O %s') % (buildInfo['buildUrl'], buildInfo['diskFile']))
         error = 0
         buildFileSize = ckSize(buildInfo['diskFile'],buildInfo['buildUrl'])
       except :
         buildFileSize = ckSize(buildInfo['diskFile'],buildInfo['buildUrl'])
-        log[time.time()] =  'Something went wrong: %s - Trying to pull again' % (sys.exc_info()[0])
+        logger(time.time(), '%s %s' % (env.logMainExcept, sys.exc_info()[0]))
         error = 1
     else:
-      log[time.time()] = 'Successful pulled: %s (%s/%s)' % (buildInfo['diskFile'], buildFileSize['size'], buildFileSize['remote_size'])
+      logger(time.time(), '%s %s (%s/%s)' % (env.logMainSuccess, buildInfo['diskFile'], buildFileSize['size'], buildFileSize['remote_size']))
       break    
   
   killTunnel()
 
   if error:
-    log[time.time()] =  'Tried %s times - no success' % (env.wgetRetry)
+    logger(time.time(), '%s [%s]' % (env.logMainNoSuccess, env.wgetRetry))
     Notify(log)
     return 1
 
@@ -133,62 +152,61 @@ def pullbuild(branch, artifact, tunnel):
   nextJob(branch)
   
   end = time.time()
-  log[time.time()] = 'Download URL: %s' % (nexusURL)
-  log[time.time()] =  'Timer: %f  Retries: %i  Result: %s' % (end - start, x, nexusResult)
+  logger(time.time(), '%s: %s' % (env.logMainUrl, nexusURL))
+  logger(time.time(), 'Timer: %f  Retries: %i  Result: %s' % (end - start, x, nexusResult))
   Notify(log)
   return 0
  
 def killTunnel():
-    if int(env.useTunnel):
+    if env.useTunnel == 'true':
       lrun('echo "kill $(pgrep -of 456)"|at now+1min')
-      log[time.time()] =  'Tunnel down: ' + lrun('atq|sort -r|head -1', capture=True)
+      logger(time.time(),  '%s %s' % (env.killTunnel, lrun('atq|sort -r|head -1', capture=True)))
       return 0
     return 0
       
 def nextJob(branch):
       lrun('echo "fab -f ~/pullbuild.py pullbuild:branch="' + branch + '|at tomorrow', capture=True)
-      log[time.time()] =  'Schedule next: ' + lrun('atq|sort -r| head -1', capture=True)
+      logger(time.time(), '%s %s' % (env.lognextJob, lrun('atq|sort -r| head -1', capture=True)))
       return 0
       
 def sshTunnel():
-    if int(env.useTunnel):
+    if env.useTunnel == 'true':
       for jumpHost in env.core_list:
         jumpHostAlive = lrun(env.nc_core + jumpHost + ' 22;echo $?', capture=True)
         if int(jumpHostAlive) == 0:
-          log[time.time()] =  'Jumphost: ' + jumpHost
-          lrun(env.tunnel + jumpHost,capture=False)
-          log[time.time()] =  'Tunnel: up'
+          result = lrun(env.tunnel + jumpHost,capture=True)
+          logger(time.time(), '%s %s %s' % (env.logsshTunnel, jumpHost, result))
           return 0
     return 0
 
 def jHostCheck():
       jHostAlive = lrun(env.nc + env.jenkinsHost + ' ' + env.jenkinsPort + ';echo $?', capture=True)
       if int(jHostAlive) == 0:
-        log[time.time()] =  'Connect to jenkins host %s:%s' % (env.jenkinsHost, env.jenkinsPort)
-        return 0
+        result = 0
       else:
-        log[time.time()] =  'Can not connect to jenkins host %s:%s' % (env.jenkinsHost, env.jenkinsPort)
-        return 1
+        result = 1
+      logger(time.time(), '%s %s:%s' % (env.logjHostCheck[str(result)], env.jenkinsHost, env.jenkinsPort))
+      return result
 
 def nexusUpload(branch, diskFile, buildName, fileName, buildFileSize):
       
       for x in range(0, env.wgetRetry):
 
-        log[time.time()] =  'Uploading to Nexus [%i]...' % (x)
+        logger(time.time(), '%s [%i]' % (env.lognexusUpload, x))
         cmdNexusUpload  = '%s --upload-file %s %s/%s/%s/%s' % (env.curl, diskFile, env.nexus, branch, buildName, fileName)
         lrun(cmdNexusUpload, capture=True)
         
         cmdNexusCheck  = '%s %s/%s/%s/%s %s' % ('wget', env.nexus, branch, buildName, fileName, env.cmdNexusSize)
         nexusFileSize = lrun(cmdNexusCheck, capture=True) or 0
-        log[time.time()] =  'Nexus Check: %s/%s/%s (nexus:%s / jenkins:%s)' % (branch, buildName, fileName, nexusFileSize, buildFileSize)
+        logger(time.time(), '%s: %s/%s/%s (nexus:%s / jenkins:%s)' % (env.lognexusUploadCheck, branch, buildName, fileName, nexusFileSize, buildFileSize))
 
         if int(nexusFileSize) == int(buildFileSize):
-          log[time.time()] =  'Successful'
-          nexusResult = 'Successful'
+          log[time.time()] =  env.lognexusUploadSuccess
+          nexusResult = env.lognexusUploadSuccess
           cleanup(diskFile)
           break
         else:
-          nexusResult = 'Could not upload'
+          nexusResult = env.lognexusUploadNoSuccess
 
       return nexusResult
 
@@ -233,17 +251,20 @@ def jbuildInfo(branch):
 
 def cleanup(diskFile):
     os.remove(diskFile)
-    log[time.time()] =  'Disk cleanup: %s' % (diskFile)
+    logger(time.time(), '%s %s' % (env.log.cleanup, diskFile))
 
 def Notify(log):
     message = ''
     if env.debug == 'true':
       for k, v in sorted(log.iteritems()): 
         message = message + v + '\n'
-      print message
     else:
       message = log['url']
     env.slackHook = env.slackHook + """'{"text": "%s"}'""" % (message)
     lrun(env.slackHook, capture=False)
 
+def logger(timer,msg):
+    log[timer] = msg
+    if env.debug == 'true':
+      print msg
 ##
