@@ -7,7 +7,6 @@ from fabric.operations import local as lrun
 
 output['everything'] = False
 output['status'] = False
-debug = True
 log = {}
 envars = ''
 
@@ -17,7 +16,7 @@ def setenv():
   s.connect(('10.255.255.255', 1))
   s.close
   myIp = s.getsockname()[0]
-  enVar = {'PULLBUILD_JENKINS_HOST':'10.104.31.6','PULLBUILD_JENKINS_PORT':'8080','PULLBUILD_NEXUS_HOST':myIp,'PULLBUILD_NEXUS_PORT':'8081','PULLBUILD_SSH_KEY':'qsc-core.rsa','PULLBUILD_NEXUS_USER':'admin','PULLBUILD_NEXUS_PASSWD':'admin123','PULLBUILD_SLACK_TOKEN':'SET_ME_PLEASE'}
+  enVar = {'PULLBUILD_JENKINS_HOST':'10.104.31.6','PULLBUILD_JENKINS_PORT':'8080','PULLBUILD_NEXUS_HOST':myIp,'PULLBUILD_NEXUS_PORT':'8081','PULLBUILD_SSH_KEY':'qsc-core.rsa','PULLBUILD_NEXUS_USER':'admin','PULLBUILD_NEXUS_PASSWD':'admin123','PULLBUILD_SLACK_TOKEN':'SET_ME_PLEASE','PULLBUILD_DEBUG':'true'}
   for var, val in (enVar.items()):
     try:
       os.environ[var]
@@ -30,7 +29,8 @@ def setenv():
 
 def production_env(branch, artifact, tunnel):
     setenv()
-    env.core_list=['19','24','25','35']    
+    env.debug               = os.environ["PULLBUILD_DEBUG"]
+    env.core_list           = ['19','24','25','35']    
     env.disable_known_hosts = 'true'
     env.useTunnel           = tunnel
     env.jenkinsHost		      = os.environ["PULLBUILD_JENKINS_HOST"]
@@ -97,8 +97,8 @@ def pullbuild(branch, artifact, tunnel):
     killTunnel()
     nextJob(branch)
     end = time.time()
-    log[time.time()] = 'Timer: %f' % (end - start)
-    log[time.time()] = 'Download URL: %s' % (nexusURL)
+    log['ztimer'] = 'Timer: %f' % (end - start)
+    log['url'] = 'Download URL: %s' % (nexusURL)
     Notify(log)
     return 1
 
@@ -237,10 +237,12 @@ def cleanup(diskFile):
 
 def Notify(log):
     message = ''
-    for k, v in sorted(log.iteritems()): 
-      message = message + v + '\n'
-    if debug:
+    if env.debug == 'true':
+      for k, v in sorted(log.iteritems()): 
+        message = message + v + '\n'
       print message
+    else:
+      message = log['url']
     env.slackHook = env.slackHook + """'{"text": "%s"}'""" % (message)
     lrun(env.slackHook, capture=False)
 
