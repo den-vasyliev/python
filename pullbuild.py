@@ -1,4 +1,4 @@
-#v.1102-1200 den@msrn.me
+#v.1102-1700 den@msrn.me
 import commands, sys, socket, getopt, os.path, re, time, jenkins
 from fabric.api import run, env, cd, roles, hide, remote_tunnel
 from fabric.state import output
@@ -67,21 +67,12 @@ def production_env(branch, artifact):
     env.cmdBuildSize        = '--spider -o -|grep Length|cut -d " " -f 2'
     env.cmdNexusSize        = '--spider --http-user %s --http-password %s -o -|grep Length|cut -d " " -f 2' % (env.nexusUser, env.nexusPasswd)
     env.logCleanup          = 'Disk cleaned up'
-    env.logMainTimer        = 'Timer:'
-    env.logMainAlready      = 'Already done: '
-    env.logMainUrl          = 'Download URL: '
-    env.logMainBuild        = 'Build: '
-    env.logMainExcept       = 'Exception - Retry: '
-    env.logMainSuccess      = 'Successfully: '
-    env.logMainNoSuccess    = 'Unsuccessfully - retries '
-    env.lognexusUpload      = 'Nexus Uploading: '
-    env.lognexusUploadSuccess = 'Successfully: '
-    env.lognexusUploadNoSuccess = 'Unsuccessfully: '
-    env.lognexusUploadCheck = 'Nexus Ckeck: '
-    env.logjHostCheck       = {'0':'Connected: ', '1':'Can not connect'}
-    env.logsshTunnel        = 'Tunnel: '
+    env.logMain             = ['Build: ', 'Timer [sec]:', 'Already done: ', 'Pulling: ', 'Download URL: ', 'Exception - Retry: ', 'Successfully: ', 'Unsuccessfully - retries ']
+    env.logNexusUpload      = ['Successfully', 'Unsuccessfully', 'Nexus Uploading: ', 'Nexus Ckeck: ']
+    env.logjHostCheck       = ['Connected: ', 'Can not connect']
+    env.logSshTunnel        = 'Tunnel: '
     env.killTunnel          = 'Tunnel closed'
-    env.lognextJob          = 'Scheduler: '
+    env.logNextJob          = 'Scheduler: '
 
     
 
@@ -95,33 +86,32 @@ Set ENV or use defaults:
   print help
 
 def pullbuild(branch, artifact):
-  start = time.time()
+  start = int(time.time())
   production_env(branch, artifact)
   
   sshTunnel()
-  print 'ok'
+  
   if jHostCheck():
     killTunnel()
     Notify(log)
     return -1
-  print 'ok'
+
   buildInfo = jbuildInfo(branch)
-  print 'ok'
   nexusURL = '%s/%s/%s/%s' % (env.nexus, branch, buildInfo['buildName'], buildInfo['fileName'])
   NexusCheck  = '%s %s %s' % ('wget', nexusURL, env.cmdNexusSize)
   buildNexusSize = ckNexusSize(buildInfo['diskFile'],buildInfo['buildUrl'], NexusCheck)
 
   if buildNexusSize['result']:
-    logger(time.time(),'%s: %s (%s/%s)' % (env.log.main.already, buildInfo['buildName'], buildNexusSize['size'], buildNexusSize['remote_size']))
+    logger(time.time(),'%s: %s (%s/%s)' % (env.logMain[2], buildInfo['buildName'], buildNexusSize['size'], buildNexusSize['remote_size']))
     killTunnel()
     nextJob(branch)
-    end = time.time()
-    logger('ztimer', '%s %f' % (env.logMainTimer, end - start))
-    logger('url', '%s %s' % (env.logMainUrl, nexusURL))
+    end = int(time.time())
+    logger('ztimer', '%s %i' % (env.logMain[1], int(end - start)))
+    logger('url', '%s %s' % (env.logMain[4], nexusURL))
     Notify(log)
     return 1
 
-  log[time.time()] =  '%s %s' % (env.logMainBuild, buildInfo['buildName'])
+  logger(time.time(), '%s %s' % (env.logMain[0], buildInfo['buildName']))
 
   buildFileSize = ckSize(buildInfo['diskFile'],buildInfo['buildUrl'])
   error = 0
@@ -129,22 +119,22 @@ def pullbuild(branch, artifact):
   for x in range(0, env.wgetRetry):
     if buildFileSize['result']:
       try:
-        logger(time.time(), '%s [%i]: %s (%s/%s)' % (env.logMainAlready, x, buildInfo['buildUrl'], buildFileSize['size'], buildFileSize['remote_size']))
+        logger(time.time(), '%s [%i]: %s (%s/%s)' % (env.logMain[3], x, buildInfo['buildUrl'], buildFileSize['size'], buildFileSize['remote_size']))
         lrun( (env.wget + ' %s -O %s') % (buildInfo['buildUrl'], buildInfo['diskFile']))
         error = 0
         buildFileSize = ckSize(buildInfo['diskFile'],buildInfo['buildUrl'])
       except :
         buildFileSize = ckSize(buildInfo['diskFile'],buildInfo['buildUrl'])
-        logger(time.time(), '%s %s' % (env.logMainExcept, sys.exc_info()[0]))
+        logger(time.time(), '%s %s' % (env.logMain[5], sys.exc_info()[0]))
         error = 1
     else:
-      logger(time.time(), '%s %s (%s/%s)' % (env.logMainSuccess, buildInfo['diskFile'], buildFileSize['size'], buildFileSize['remote_size']))
+      logger(time.time(), '%s %s (%s/%s)' % (env.logMain[6], buildInfo['diskFile'], buildFileSize['size'], buildFileSize['remote_size']))
       break    
   
   killTunnel()
 
   if error:
-    logger(time.time(), '%s [%s]' % (env.logMainNoSuccess, env.wgetRetry))
+    logger(time.time(), '%s [%s]' % (env.logMain[7], env.wgetRetry))
     Notify(log)
     return 1
 
@@ -152,8 +142,8 @@ def pullbuild(branch, artifact):
   nextJob(branch)
   
   end = time.time()
-  logger(time.time(), '%s: %s' % (env.logMainUrl, nexusURL))
-  logger(time.time(), 'Timer: %f  Retries: %i  Result: %s' % (end - start, x, nexusResult))
+  logger(time.time(), '%s: %s' % (env.logMain[4], nexusURL))
+  logger(time.time(), 'Timer [sec]: %i  Retries: %i  Result: %s' % (int(end - start), x, nexusResult))
   Notify(log)
   return 0
  
@@ -166,7 +156,7 @@ def killTunnel():
       
 def nextJob(branch):
       lrun('echo "fab -f ~/pullbuild.py pullbuild:branch="' + branch + '|at tomorrow', capture=True)
-      logger(time.time(), '%s %s' % (env.lognextJob, lrun('atq|sort -r| head -1', capture=True)))
+      logger(time.time(), '%s %s' % (env.logNextJob, lrun('atq|sort -r| head -1', capture=True)))
       return 0
       
 def sshTunnel():
@@ -174,8 +164,8 @@ def sshTunnel():
       for jumpHost in env.core_list:
         jumpHostAlive = lrun(env.nc_core + jumpHost + ' 22;echo $?', capture=True)
         if int(jumpHostAlive) == 0:
-          result = lrun(env.tunnel + jumpHost,capture=True)
-          logger(time.time(), '%s %s %s' % (env.logsshTunnel, jumpHost, result))
+          lrun(env.tunnel + jumpHost,capture=False)
+          logger(time.time(), '%s %s' % (env.logSshTunnel, jumpHost))
           return 0
     return 0
 
@@ -185,28 +175,28 @@ def jHostCheck():
         result = 0
       else:
         result = 1
-      logger(time.time(), '%s %s:%s' % (env.logjHostCheck[str(result)], env.jenkinsHost, env.jenkinsPort))
+      logger(time.time(), '%s %s:%s' % (env.logjHostCheck[result], env.jenkinsHost, env.jenkinsPort))
       return result
 
 def nexusUpload(branch, diskFile, buildName, fileName, buildFileSize):
       
       for x in range(0, env.wgetRetry):
 
-        logger(time.time(), '%s [%i]' % (env.lognexusUpload, x))
+        logger(time.time(), '%s [%i]' % (env.logNexusUpload[2], x))
         cmdNexusUpload  = '%s --upload-file %s %s/%s/%s/%s' % (env.curl, diskFile, env.nexus, branch, buildName, fileName)
         lrun(cmdNexusUpload, capture=True)
         
         cmdNexusCheck  = '%s %s/%s/%s/%s %s' % ('wget', env.nexus, branch, buildName, fileName, env.cmdNexusSize)
         nexusFileSize = lrun(cmdNexusCheck, capture=True) or 0
-        logger(time.time(), '%s: %s/%s/%s (nexus:%s / jenkins:%s)' % (env.lognexusUploadCheck, branch, buildName, fileName, nexusFileSize, buildFileSize))
+        logger(time.time(), '%s: %s/%s/%s (nexus:%s / jenkins:%s)' % (env.logNexusUpload[3], branch, buildName, fileName, nexusFileSize, buildFileSize))
 
         if int(nexusFileSize) == int(buildFileSize):
-          log[time.time()] =  env.lognexusUploadSuccess
-          nexusResult = env.lognexusUploadSuccess
+          logger(time.time(), env.logNexusUpload[0])
+          nexusResult = env.logNexusUpload[0]
           cleanup(diskFile)
           break
         else:
-          nexusResult = env.lognexusUploadNoSuccess
+          nexusResult = env.logNexusUpload[1]
 
       return nexusResult
 
@@ -251,7 +241,7 @@ def jbuildInfo(branch):
 
 def cleanup(diskFile):
     os.remove(diskFile)
-    logger(time.time(), '%s %s' % (env.log.cleanup, diskFile))
+    logger(time.time(), '%s %s' % (env.logCleanup, diskFile))
 
 def Notify(log):
     message = ''
