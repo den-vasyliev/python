@@ -1,4 +1,4 @@
-#v.1202-1530 den@msrn.me
+#v.1202-1555 den@msrn.me
 import commands, sys, socket, getopt, os.path, re, time, jenkins
 from fabric.api import run, env, cd, roles, hide, remote_tunnel
 from fabric.state import output
