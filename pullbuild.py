@@ -33,7 +33,7 @@ def production_env(branch, artifact):
     env.core_list           = ['19','24','25','35']    
     env.disable_known_hosts = 'true'
     env.useTunnel           = os.environ["PULLBUILD_TUNNEL"]
-    env.jenkinsHost		      = os.environ["PULLBUILD_JENKINS_HOST"]
+    env.jenkinsHost         = os.environ["PULLBUILD_JENKINS_HOST"]
     env.jenkinsPort         = os.environ["PULLBUILD_JENKINS_PORT"]
     env.jenkinsProto        = 'http'
     env.tunnelPort          = '456'
@@ -55,7 +55,7 @@ def production_env(branch, artifact):
     env.buildArtifact       = artifact
     env.user                = 'ubuntu'
     env.hosts               = ['localhost']
-    env.tag 			          = 'lastSuccessfulBuild'
+    env.tag                 = 'lastSuccessfulBuild'
     env.nc                  = 'nc -w 1 -z '
     env.nc_core             = env.nc + '172.22.171.'
     env.curl                = 'curl -v -u %s:%s' % (env.nexusUser, env.nexusPasswd)
