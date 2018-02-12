@@ -62,7 +62,7 @@ def production_env(branch, artifact):
     env.wget                = 'wget --retry-connrefused --waitretry=10 --read-timeout=20 --timeout=15 -t 3 --continue'
     env.wgetRetry           = 3
     env.kill                = 'kill $(pgrep -f "%s:")' % (env.tunnelPort )
-    env.buildUrl           	= '/job/%s/%s/artifact/' % (branch, env.tag)
+    env.buildUrl            = '/job/%s/%s/artifact/' % (branch, env.tag)
     env.cmdBuildNumber      = 'wget -qO- %s/job/%s/%s/buildNumber' % (env.jenkinsURL, branch, env.tag)
     env.cmdBuildSize        = '--spider -o -|grep Length|cut -d " " -f 2'
     env.cmdNexusSize        = '--spider --http-user %s --http-password %s -o -|grep Length|cut -d " " -f 2' % (env.nexusUser, env.nexusPasswd)
