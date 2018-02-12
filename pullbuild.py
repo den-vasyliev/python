@@ -1,4 +1,4 @@
-#v.1102-1700 den@msrn.me
+#v.1202-1530 den@msrn.me
 import commands, sys, socket, getopt, os.path, re, time, jenkins
 from fabric.api import run, env, cd, roles, hide, remote_tunnel
 from fabric.state import output
@@ -155,7 +155,7 @@ def killTunnel():
     return 0
       
 def nextJob(branch):
-      lrun('echo "fab -f ~/pullbuild.py pullbuild:branch="' + branch + '|at tomorrow', capture=True)
+      lrun('echo "fab -f ~/pullbuild.py pullbuild:branch=%s,artifact=%s" %s' % (branch, env.buildArtifact, '|at tomorrow'), capture=True)
       logger(time.time(), '%s %s' % (env.logNextJob, lrun('atq|sort -r| head -1', capture=True)))
       return 0
       
@@ -246,6 +246,7 @@ def cleanup(diskFile):
 def Notify(log):
     message = ''
     if env.debug == 'true':
+      logger(0, '[Debug Mode]')
       for k, v in sorted(log.iteritems()): 
         message = message + v + '\n'
     else:
