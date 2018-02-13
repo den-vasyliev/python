@@ -5,64 +5,68 @@ https://raw.githubusercontent.com/den-vasyliev/python/master/nexus.py
 Please find more on swagger http://<nexus_hostname>/#admin/system/api
 
 Quick Start:
-Credentials: nexus_config={'host':'localhost:8081','credentials':'admin:admin123'}
-Upload: nexus.raw_upload(nexus_config, 'nexus.py', 'test', 'test', 'nexus.py') # Return 201
-Search: query={'q': 'test'}; nexus.search(nexus_config, query) # Return JSON
-Delete: nexus.components_del(nexus_config, 'YnVpbGRzOjRiMzc4NjUzNTkxYzY3MjJlNDc5Y2JmMTVjNWZhZTQ4') # Return 204
+Credentials: nexusConfig={'host':'localhost:8081','credentials':'admin:admin123'}
+Upload: nexus.rawUpload(nexusConfig, 'nexus.py', 'test', 'test', 'nexus.py') # Return 201
+Search: nexus.search(nexusConfig, {'q': 'test'}) # Return JSON
+Delete: nexus.components_del(nexusConfig, 'YnVpbGRzOjRiMzc4NjUzNTkxYzY3MjJlNDc5Y2JmMTVjNWZhZTQ4') # Return 204
 
 """
-from fabric.api import env
-from fabric.state import output
-from urllib import quote 
-from fabric.operations import local as lrun
+import subprocess
 
-output['everything'] = False
-output['status'] = False
-nexus_config={'host':'localhost:8081','credentials':'admin:admin123'}
-
-def raw_upload(nexus_config, diskFile, branch, buildName, fileName):
+def _env(nexusConfig, type):
+  curl = ["curl -s -X GET -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta" % (nexusConfig['credentials'],nexusConfig['host']), 
+  """curl -s -o /dev/null -I -w "%s" -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta""" % ('%{http_code}', nexusConfig['credentials'], nexusConfig['host'])]
+  return curl[type]
+  
+def rawUpload(nexusConfig, diskFile, branchName, buildName, fileName):
   """Upload file to RAW repository
   201 Created"""
-  NexusUpload  = """curl -s -o /dev/null -I -w "%s" -u %s --upload-file %s http://%s/repository/builds/%s/%s/%s""" % ('%{http_code}', nexus_config['credentials'], diskFile, nexus_config['host'], branch, buildName, fileName)
-  result = lrun(NexusUpload, capture=True)
+  cmd  = """curl -s -o /dev/null -I -w "%s" -u %s --upload-file %s http://%s/repository/builds/%s/%s/%s""" % ('%{http_code}', nexusConfig['credentials'], diskFile, nexusConfig['host'], branchName, buildName, fileName)
+  result = subprocess.check_output(['bash','-c', cmd])
   return result
 
-def assets_get(nexus_config, repository):
+def assetsGet(nexusConfig, repository):
   "<REPOSITORY> from which you would like to retrieve assets"
-  result = lrun(("curl -X GET -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta/assets?repository=%s'") % (nexus_config['credentials'], nexus_config['host'], repository), capture=True)
+  cmd = "%s/assets?repository=%s'" % (_env(nexusConfig, 0), repository)
+  result = subprocess.check_output(['bash','-c', cmd])
   return result
 
-def assets_del(nexus_config, asset_id):
+def assetsDel(nexusConfig, asset_id):
   """<ID> of the asset to delete
   204 Component was successfully deleted
   403 Insufficient permissions to delete component
   404 Component not found
   422 Malformed ID"""
-  result = lrun(("""curl -s -o /dev/null -I -w "%s" -X DELETE -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta/assets/%s'""") % ('%{http_code}', nexus_config['credentials'], nexus_config['host'], asset_id), capture=True)
+  cmd = """%s/assets/%s' -X DELETE """ % (_env(nexusConfig, 1), asset_id)
+  result = subprocess.check_output(['bash','-c', cmd])
   return result
 
-def assets_getid(nexus_config, asset_id):
+def assetsGetid(nexusConfig, asset_id):
   "GET <ID> of the asset to get"
-  result = lrun(("curl -X GET -u %s --header 'Accept: application/json' 'http://localhost:345/service/rest/beta/assets/%s'") % (nexus_config['credentials'], nexus_config['host'], asset_id), capture=True)
+  cmd = "%s/assets/%s'" % (_env(nexusConfig, 0), asset_id)
+  result = subprocess.check_output(['bash','-c', cmd])
   return result
 
-def components_get(nexus_config, repository):
+def componentsGet(nexusConfig, repository):
   """<REPOSITORY>  from which you would like to retrieve components
   204 Component was successfully deleted
   403 Insufficient permissions to delete component
   404 Component not found
   422 Malformed ID"""
-  result = lrun(("curl -X GET -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta/components?repository=%s'") % (nexus_config['credentials'], nexus_config['host'], repository), capture=True)
+  cmd = "%s/components?repository=%s'" % (_env(nexusConfig, 0), repository)
+  result = subprocess.check_output(['bash','-c', cmd])
   return result
 
-def components_del(nexus_config, component_id):
+def componentsDel(nexusConfig, component_id):
   "<ID> of the component to delete"
-  result = lrun(("""curl -s -o /dev/null -I -w "%s" -X DELETE -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta/components/%s'""") % ('%{http_code}', nexus_config['credentials'], nexus_config['host'], component_id), capture=True)
+  cmd = """%s/components/%s' -X DELETE """ % (_env(nexusConfig, 1), component_id)
+  result = subprocess.check_output(['bash','-c', cmd])
   return result
 
-def components_getid(nexus_config, component_id):
+def componentsGetid(nexusConfig, component_id):
   "<ID> of the component to retrieve"
-  result = lrun(("curl -X GET -u %s --header 'Accept: application/json' 'http://l%s/service/rest/beta/components/%s'") % (nexus_config['credentials'], nexus_config['host'], component_id), capture=True)
+  cmd = "%s/components/%s'" % (_env(nexusConfig, 0), component_id)
+  result = subprocess.check_output(['bash','-c', cmd])
   return result
 
 def readonly():
@@ -83,7 +87,7 @@ def script():
 #post
   return 'Not implemented yet'
 
-def search(nexus_config, query):
+def search(nexusConfig, query):
   """Query by param and keyword
 query is a dict 'param':'keyword'
 Param in:
@@ -97,24 +101,27 @@ rubygems.description|rubygems.platform|rubygems.summary|yum.architecture
 
 Example:
 query={'q':'qlmm-mvp-1802', 'repository':'builds'}
-nexus.search(nexus_config, query)
+nexus.search(nexusConfig, query)
   """
   query_ = ''
   for k, v in sorted(query.iteritems()): 
     query_ = '%s&%s=%s' % (query_,k,v)
-  result = lrun(("curl -X GET -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta/search?%s'") % (nexus_config['credentials'], nexus_config['host'], query_), capture=True)
+  cmd = "%s/search?%s'" % (_env(nexusConfig, 0), query_)
+  result = subprocess.check_output(['bash','-c', cmd])
   return result
 
 
-def search_assets(nexus_config, query):
+def searchAssets(nexusConfig, query):
   "Query by keyword"
-  result = lrun(("curl -X GET -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta/search/assets?q=%s'") % (nexus_config['credentials'], nexus_config['host'], query), capture=True)
+  cmd = "%s/search/assets?q=%s'" % (_env(nexusConfig, 0), query)
+  result = subprocess.check_output(['bash','-c', cmd])
   return result
 
 #GET /beta/search/assets
-def search_download(nexus_config, query):
+def searchDownload(nexusConfig, query):
   "Query by keyword"
-  result = lrun(("curl -X GET -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta/search/assets/download?q=%s'") % (nexus_config['credentials'], nexus_config['host'], query), capture=True)
+  cmd = "%s/search/assets/download?q=%s'" % (_env(nexusConfig, 0), query)
+  result = subprocess.check_output(['bash','-c', cmd])
   return result
 
 #GET /beta/search/assets/download
