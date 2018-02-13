@@ -6,7 +6,7 @@ Please find more on swagger http://<nexus_hostname>/#admin/system/api
 
 Quick Start:
 Credentials: nexusConfig={'host':'localhost:8081','credentials':'admin:admin123'}
-Upload: nexus.rawUpload(nexusConfig, 'nexus.py', 'test', 'test', 'nexus.py') # Return 201
+Upload: nexus.rawUpload(nexusConfig, 'builds','nexus.py', 'test', 'test', 'nexus.py') # Return 201
 Search: nexus.search(nexusConfig, {'q': 'test'}) # Return JSON
 Delete: nexus.componentsDel(nexusConfig, 'YnVpbGRzOjRiMzc4NjUzNTkxYzY3MjJlNDc5Y2JmMTVjNWZhZTQ4') # Return 204
 
@@ -15,17 +15,18 @@ import subprocess
 
 def _env(nexusConfig, type):
   curl = ["curl -s -X GET -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta" % (nexusConfig['credentials'],nexusConfig['host']), 
-  """curl -s -o /dev/null -I -w "%s" -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta""" % ('%{http_code}', nexusConfig['credentials'], nexusConfig['host'])]
+  """curl -s -o /dev/null -I -w "%s" -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta""" % ('%{http_code}', nexusConfig['credentials'], nexusConfig['host']),
+  """curl -s -o /dev/null -I -w "%s" -u %s  http://%s/repository""" % ('%{http_code}', nexusConfig['credentials'], nexusConfig['host'])]
   return curl[type]
 
 def _run(cmd):
   result = subprocess.check_output(['bash','-c', cmd])
   return result
   
-def rawUpload(nexusConfig, diskFile, branchName, buildName, fileName):
+def rawUpload(nexusConfig, repo, diskFile, branchName, buildName, fileName):
   """Upload file to RAW repository
   201 Created"""
-  cmd  = """curl -s -o /dev/null -I -w "%s" -u %s --upload-file %s http://%s/repository/builds/%s/%s/%s""" % ('%{http_code}', nexusConfig['credentials'], diskFile, nexusConfig['host'], branchName, buildName, fileName)
+  cmd  = """%s/%s/%s/%s/%s --upload-file %s""" % (_env(nexusConfig, 2), repo, branchName, buildName, fileName, diskFile)
   return _run(cmd)
 
 def assetsGet(nexusConfig, repository):
