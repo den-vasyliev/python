@@ -1,14 +1,11 @@
 """v.1302-0340 den@msrn.me
 Simply REST API Module for Nexus Repository ManagerOSS 3.8.0-0
-
-Set nexus_config dict to begin, e.g:
-nexus_config={'host':'localhost:8081','credentials':'admin:admin123'}
-
-Returning JSON with new line at the end
+https://raw.githubusercontent.com/den-vasyliev/python/master/nexus.py
 
 Please find more on swagger http://<nexus_hostname>/#admin/system/api
 
 Quick Start:
+Credentials: nexus_config={'host':'localhost:8081','credentials':'admin:admin123'}
 Upload: nexus.raw_upload(nexus_config, 'nexus.py', 'test', 'test', 'nexus.py') # Return 201
 Search: query={'q': 'test'}; nexus.search(nexus_config, query) # Return JSON
 Delete: nexus.components_del(nexus_config, 'YnVpbGRzOjRiMzc4NjUzNTkxYzY3MjJlNDc5Y2JmMTVjNWZhZTQ4') # Return 204
