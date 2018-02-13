@@ -8,7 +8,7 @@ Quick Start:
 Credentials: nexusConfig={'host':'localhost:8081','credentials':'admin:admin123'}
 Upload: nexus.rawUpload(nexusConfig, 'nexus.py', 'test', 'test', 'nexus.py') # Return 201
 Search: nexus.search(nexusConfig, {'q': 'test'}) # Return JSON
-Delete: nexus.components_del(nexusConfig, 'YnVpbGRzOjRiMzc4NjUzNTkxYzY3MjJlNDc5Y2JmMTVjNWZhZTQ4') # Return 204
+Delete: nexus.componentsDel(nexusConfig, 'YnVpbGRzOjRiMzc4NjUzNTkxYzY3MjJlNDc5Y2JmMTVjNWZhZTQ4') # Return 204
 
 """
 import subprocess
@@ -17,19 +17,21 @@ def _env(nexusConfig, type):
   curl = ["curl -s -X GET -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta" % (nexusConfig['credentials'],nexusConfig['host']), 
   """curl -s -o /dev/null -I -w "%s" -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta""" % ('%{http_code}', nexusConfig['credentials'], nexusConfig['host'])]
   return curl[type]
+
+def _run(cmd):
+  result = subprocess.check_output(['bash','-c', cmd])
+  return result
   
 def rawUpload(nexusConfig, diskFile, branchName, buildName, fileName):
   """Upload file to RAW repository
   201 Created"""
   cmd  = """curl -s -o /dev/null -I -w "%s" -u %s --upload-file %s http://%s/repository/builds/%s/%s/%s""" % ('%{http_code}', nexusConfig['credentials'], diskFile, nexusConfig['host'], branchName, buildName, fileName)
-  result = subprocess.check_output(['bash','-c', cmd])
-  return result
+  return _run(cmd)
 
 def assetsGet(nexusConfig, repository):
   "<REPOSITORY> from which you would like to retrieve assets"
   cmd = "%s/assets?repository=%s'" % (_env(nexusConfig, 0), repository)
-  result = subprocess.check_output(['bash','-c', cmd])
-  return result
+  return _run(cmd)
 
 def assetsDel(nexusConfig, asset_id):
   """<ID> of the asset to delete
@@ -38,14 +40,12 @@ def assetsDel(nexusConfig, asset_id):
   404 Component not found
   422 Malformed ID"""
   cmd = """%s/assets/%s' -X DELETE """ % (_env(nexusConfig, 1), asset_id)
-  result = subprocess.check_output(['bash','-c', cmd])
-  return result
+  return _run(cmd)
 
 def assetsGetid(nexusConfig, asset_id):
   "GET <ID> of the asset to get"
   cmd = "%s/assets/%s'" % (_env(nexusConfig, 0), asset_id)
-  result = subprocess.check_output(['bash','-c', cmd])
-  return result
+  return _run(cmd)
 
 def componentsGet(nexusConfig, repository):
   """<REPOSITORY>  from which you would like to retrieve components
@@ -54,20 +54,17 @@ def componentsGet(nexusConfig, repository):
   404 Component not found
   422 Malformed ID"""
   cmd = "%s/components?repository=%s'" % (_env(nexusConfig, 0), repository)
-  result = subprocess.check_output(['bash','-c', cmd])
-  return result
+  return _run(cmd)
 
 def componentsDel(nexusConfig, component_id):
   "<ID> of the component to delete"
   cmd = """%s/components/%s' -X DELETE """ % (_env(nexusConfig, 1), component_id)
-  result = subprocess.check_output(['bash','-c', cmd])
-  return result
+  return _run(cmd)
 
 def componentsGetid(nexusConfig, component_id):
   "<ID> of the component to retrieve"
   cmd = "%s/components/%s'" % (_env(nexusConfig, 0), component_id)
-  result = subprocess.check_output(['bash','-c', cmd])
-  return result
+  return _run(cmd)
 
 def readonly():
   "Not implemented yet"
@@ -107,22 +104,19 @@ nexus.search(nexusConfig, query)
   for k, v in sorted(query.iteritems()): 
     query_ = '%s&%s=%s' % (query_,k,v)
   cmd = "%s/search?%s'" % (_env(nexusConfig, 0), query_)
-  result = subprocess.check_output(['bash','-c', cmd])
-  return result
+  return _run(cmd)
 
 
 def searchAssets(nexusConfig, query):
   "Query by keyword"
   cmd = "%s/search/assets?q=%s'" % (_env(nexusConfig, 0), query)
-  result = subprocess.check_output(['bash','-c', cmd])
-  return result
+  return _run(cmd)
 
 #GET /beta/search/assets
 def searchDownload(nexusConfig, query):
   "Query by keyword"
   cmd = "%s/search/assets/download?q=%s'" % (_env(nexusConfig, 0), query)
-  result = subprocess.check_output(['bash','-c', cmd])
-  return result
+  return _run(cmd)
 
 #GET /beta/search/assets/download
 #Returns a 302 Found with location header field set to download URL. Search must return a single asset to receive download URL.
