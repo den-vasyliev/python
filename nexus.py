@@ -1,70 +1,78 @@
-"""v.1302-0340 den@msrn.me
+"""v.1402-1550 denys.vasyliev@qsc.com
 Simply REST API Module for Nexus Repository ManagerOSS 3.8.0-0
 https://raw.githubusercontent.com/den-vasyliev/python/master/nexus.py
 
 Please find more on swagger http://<nexus_hostname>/#admin/system/api
 
 Quick Start:
-Credentials: nexusConfig={'host':'localhost:8081','credentials':'admin:admin123'}
+Credentials: nexusConfig={'host':'localhost:8081','credentials':['admin','admin123']}
 Upload: nexus.rawUpload(nexusConfig, 'builds','nexus.py', 'test', 'test', 'nexus.py') # Return 201
 Search: nexus.search(nexusConfig, {'q': 'test'}) # Return JSON
 Delete: nexus.componentsDel(nexusConfig, 'YnVpbGRzOjRiMzc4NjUzNTkxYzY3MjJlNDc5Y2JmMTVjNWZhZTQ4') # Return 204
 
 """
-import subprocess
+import subprocess, requests
 
-def _env(nexusConfig, type):
-  curl = ["curl -s -X GET -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta" % (nexusConfig['credentials'],nexusConfig['host']), 
-  """curl -s -o /dev/null -I -w "%s" -u %s --header 'Accept: application/json' 'http://%s/service/rest/beta""" % ('%{http_code}', nexusConfig['credentials'], nexusConfig['host']),
-  """curl -s -o /dev/null -I -w "%s" -u %s  http://%s/repository""" % ('%{http_code}', nexusConfig['credentials'], nexusConfig['host'])]
-  return curl[type]
+nexusConfig={'host':'localhost:8081','credentials':['admin','admin123']}
 
-def _run(cmd):
-  result = subprocess.check_output(['bash','-c', cmd])
-  return result
+def _run(cmd, opt='get'):
+  auth = (nexusConfig['credentials'])
+  headers = {'Accept': 'application/json'}
+  url = 'http://%s/service/rest/beta/%s' % (nexusConfig['host'], cmd)
+
+  if opt == 'get':
+    result = requests.get(url, headers=headers, auth=(nexusConfig['credentials'][0],nexusConfig['credentials'][1]))
+  elif opt == 'delete':
+    result = requests.delete(url, headers=headers, auth=(nexusConfig['credentials'][0],nexusConfig['credentials'][1]))
+  else:
+    url = 'http://%s/repository/%s' % (nexusConfig['host'], cmd)
+    files = {'file': open(opt, 'rb')}
+    result = requests.put(url, files=files, auth=(nexusConfig['credentials'][0],nexusConfig['credentials'][1]))
+    
+  return result.status_code, result.text
   
-def rawUpload(nexusConfig, repo, diskFile, branchName, buildName, fileName):
+def upload(repo, branchName, buildName, fileName):
   """Upload file to RAW repository
   201 Created"""
-  cmd  = """%s/%s/%s/%s/%s --upload-file %s""" % (_env(nexusConfig, 2), repo, branchName, buildName, fileName, diskFile)
-  return _run(cmd)
+  cmd  = "%s/%s/%s/%s" % (repo, branchName, buildName, fileName)
+  return _run(cmd, fileName)
 
-def assetsGet(nexusConfig, repository):
+def assetsGet(repository):
   "<REPOSITORY> from which you would like to retrieve assets"
-  cmd = "%s/assets?repository=%s'" % (_env(nexusConfig, 0), repository)
+  cmd = "assets?repository=%s" % (repository)
   return _run(cmd)
 
-def assetsDel(nexusConfig, asset_id):
+def assetsDel(asset_id):
   """<ID> of the asset to delete
   204 Component was successfully deleted
   403 Insufficient permissions to delete component
   404 Component not found
   422 Malformed ID"""
-  cmd = """%s/assets/%s' -X DELETE """ % (_env(nexusConfig, 1), asset_id)
-  return _run(cmd)
+  cmd = "assets/%s" % (asset_id)
+  return _run(cmd,'delete')
 
-def assetsGetid(nexusConfig, asset_id):
+def assetsGetId(asset_id):
   "GET <ID> of the asset to get"
-  cmd = "%s/assets/%s'" % (_env(nexusConfig, 0), asset_id)
+  cmd = "assets/%s" % (asset_id)
   return _run(cmd)
 
-def componentsGet(nexusConfig, repository):
+def componentsGet(repository):
   """<REPOSITORY>  from which you would like to retrieve components
   204 Component was successfully deleted
   403 Insufficient permissions to delete component
   404 Component not found
   422 Malformed ID"""
-  cmd = "%s/components?repository=%s'" % (_env(nexusConfig, 0), repository)
+  cmd = "components?repository=%s" % (repository)
   return _run(cmd)
 
-def componentsDel(nexusConfig, component_id):
+def componentsDel(component_id):
   "<ID> of the component to delete"
-  cmd = """%s/components/%s' -X DELETE """ % (_env(nexusConfig, 1), component_id)
-  return _run(cmd)
+  cmd = "components/%s" % (component_id)
+  return _run(cmd, 'delete')
 
-def componentsGetid(nexusConfig, component_id):
+def componentsGetId(component_id):
   "<ID> of the component to retrieve"
-  cmd = "%s/components/%s'" % (_env(nexusConfig, 0), component_id)
+  cmd = "components/%s" % (component_id)
   return _run(cmd)
 
 def readonly():
@@ -85,7 +93,7 @@ def script():
 #post
   return 'Not implemented yet'
 
-def search(nexusConfig, query):
+def search(query):
   """Query by param and keyword
 query is a dict 'param':'keyword'
 Param in:
@@ -104,19 +112,19 @@ nexus.search(nexusConfig, query)
   query_ = ''
   for k, v in sorted(query.iteritems()): 
     query_ = '%s&%s=%s' % (query_,k,v)
-  cmd = "%s/search?%s'" % (_env(nexusConfig, 0), query_)
+  cmd = "search?%s" % (query_)
   return _run(cmd)
 
 
-def searchAssets(nexusConfig, query):
+def searchAssets(query):
   "Query by keyword"
-  cmd = "%s/search/assets?q=%s'" % (_env(nexusConfig, 0), query)
+  cmd = "search/assets?q=%s" % (query)
   return _run(cmd)
 
 #GET /beta/search/assets
-def searchDownload(nexusConfig, query):
+def searchDownload(query):
   "Query by keyword"
-  cmd = "%s/search/assets/download?q=%s'" % (_env(nexusConfig, 0), query)
+  cmd = "search/assets/download?q=%s" % (query)
   return _run(cmd)
 
 #GET /beta/search/assets/download

@@ -212,7 +212,9 @@ def ckSize(diskFile, buildUrl, jMD5):
           for x in jMD5:
             if x.find(diskFileMd5):
               return {'result': 0, 'size': diskSize, 'remote_size': jbuildSize, 'md5': diskFileMd5}
-              break
+            else:
+              cleanup(diskFile)
+              return {'result': 1, 'size': -1, 'remote_size': jbuildSize}
         return {'result': 1, 'size': diskSize, 'remote_size': jbuildSize}
       return {'result': 1, 'size': 0, 'remote_size': jbuildSize}
 
