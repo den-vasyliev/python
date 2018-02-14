@@ -1,9 +1,10 @@
-#v.1202-1555 den@msrn.me
-import commands, sys, socket, getopt, os.path, re, time, jenkins
+#v.1402-0300 den@msrn.me
+import commands, sys, socket, getopt, os.path, re, time, jenkins, requests, hashlib
 from fabric.api import run, env, cd, roles, hide, remote_tunnel
 from fabric.state import output
 from urllib import quote 
 from fabric.operations import local as lrun
+from lxml import html
 
 output['everything'] = False
 output['status'] = False
@@ -113,7 +114,7 @@ def pullbuild(branch, artifact):
 
   logger(time.time(), '%s %s' % (env.logMain[0], buildInfo['buildName']))
 
-  buildFileSize = ckSize(buildInfo['diskFile'],buildInfo['buildUrl'])
+  buildFileSize = ckSize(buildInfo['diskFile'], buildInfo['buildUrl'], buildInfo['jMD5'])
   error = 0
 
   for x in range(0, env.wgetRetry):
@@ -122,13 +123,13 @@ def pullbuild(branch, artifact):
         logger(time.time(), '%s [%i]: %s (%s/%s)' % (env.logMain[3], x, buildInfo['buildUrl'], buildFileSize['size'], buildFileSize['remote_size']))
         lrun( (env.wget + ' %s -O %s') % (buildInfo['buildUrl'], buildInfo['diskFile']))
         error = 0
-        buildFileSize = ckSize(buildInfo['diskFile'],buildInfo['buildUrl'])
+        buildFileSize = ckSize(buildInfo['diskFile'], buildInfo['buildUrl'], buildInfo['jMD5'])
       except :
-        buildFileSize = ckSize(buildInfo['diskFile'],buildInfo['buildUrl'])
+        buildFileSize = ckSize(buildInfo['diskFile'], buildInfo['buildUrl'], buildInfo['jMD5'])
         logger(time.time(), '%s %s' % (env.logMain[5], sys.exc_info()[0]))
         error = 1
     else:
-      logger(time.time(), '%s %s (%s/%s)' % (env.logMain[6], buildInfo['diskFile'], buildFileSize['size'], buildFileSize['remote_size']))
+      logger(time.time(), '%s %s (%s/%s)[%s]' % (env.logMain[6], buildInfo['diskFile'], buildFileSize['size'], buildFileSize['remote_size'], buildFileSize['md5']))
       break    
   
   killTunnel()
@@ -200,14 +201,18 @@ def nexusUpload(branch, diskFile, buildName, fileName, buildFileSize):
 
       return nexusResult
 
-def ckSize(diskFile, buildUrl):
+def ckSize(diskFile, buildUrl, jMD5):
 
       jbuildSize = lrun( (env.wget + ' %s %s') % (buildUrl, env.cmdBuildSize), capture=True )
       
       if os.path.exists(diskFile):
-        diskSize = os.path.getsize(diskFile) or 0
+        diskSize = os.path.getsize(diskFile)
         if int(diskSize) == int(jbuildSize):
-          return {'result': 0, 'size': diskSize, 'remote_size': jbuildSize}
+          diskFileMd5 = md5(diskFile)
+          for x in jMD5:
+            if x.find(diskFileMd5):
+              return {'result': 0, 'size': diskSize, 'remote_size': jbuildSize, 'md5': diskFileMd5}
+              break
         return {'result': 1, 'size': diskSize, 'remote_size': jbuildSize}
       return {'result': 1, 'size': 0, 'remote_size': jbuildSize}
 
@@ -231,13 +236,15 @@ def jbuildInfo(branch):
     
     for artifact in jbuildArtifacts:
       if artifact['fileName'].find(env.buildArtifact) > 0:
-
+        jpage = requests.get('%s/job/%s/%s/fingerprints' % (env.jenkinsURL, branch, jbuildNumber))
+        jtree = html.fromstring(jpage.content)
+        jMD5 = jtree.xpath('//a[contains(@href,"fingerprint/")]/@href')
         jbuildUrl = env.jenkinsURL + quote(env.buildUrl + artifact['relativePath'])
         jbuildName = jbuildInfo['displayName'].replace(' ','')
         jfileName = artifact['fileName'].replace(' ','_')
         jdiskFile = env.diskPath + jbuildName + ':' + jfileName
 
-        return {'buildUrl': jbuildUrl, 'buildName': jbuildName, 'diskFile': jdiskFile, 'fileName': jfileName}
+        return {'buildUrl': jbuildUrl, 'buildName': jbuildName, 'diskFile': jdiskFile, 'fileName': jfileName, 'jMD5': jMD5}
 
 def cleanup(diskFile):
     os.remove(diskFile)
@@ -258,4 +265,11 @@ def logger(timer,msg):
     log[timer] = msg
     if env.debug == 'true':
       print msg
+
+def md5(fname):
+    hash_md5 = hashlib.md5()
+    with open(fname, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
 ##
