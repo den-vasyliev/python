@@ -6,14 +6,12 @@ Please find more on swagger http://<nexus_hostname>/#admin/system/api
 
 Quick Start:
 Credentials: nexusConfig={'host':'localhost:8081','credentials':['admin','admin123']}
-Upload: nexus.rawUpload(nexusConfig, 'builds','nexus.py', 'test', 'test', 'nexus.py') # Return 201
-Search: nexus.search(nexusConfig, {'q': 'test'}) # Return JSON
-Delete: nexus.componentsDel(nexusConfig, 'YnVpbGRzOjRiMzc4NjUzNTkxYzY3MjJlNDc5Y2JmMTVjNWZhZTQ4') # Return 204
+Upload: nexus.upload('builds','test','1','nexus.py') # Return 201
+Search: nexus.search({'q':'nexus.py'}) # Return assets in JSON
+Delete: nexus.assetsDel('YnVpbGRzOjkzYjliOWViOWE3ZWNiMDZiNTY5OTYyZGEyZDNhNTc5') # Return 204
 
 """
-import subprocess, requests
-
-nexusConfig={'host':'localhost:8081','credentials':['admin','admin123']}
+import requests
 
 def _run(cmd, opt='get'):
   auth = (nexusConfig['credentials'])
